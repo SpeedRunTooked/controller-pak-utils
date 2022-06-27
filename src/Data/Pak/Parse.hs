@@ -31,7 +31,7 @@ getPak =
     iNodeT <- getINodeTable
     skip 256 -- skip second INodeTable
     noteT  <- getNoteTable
-    rest   <- getRawPages 3
+    rest   <- getRawPages 5
     pure (Pak idSec iNodeT noteT rest)
 
 getIDSector :: Get ByteString
