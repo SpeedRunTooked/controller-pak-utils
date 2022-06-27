@@ -10,12 +10,10 @@ import Data.Pak.Display
 import Data.Pak.Internal
 import Data.Pak.Types
 import Data.Pak.INodeTable
+import Data.Pak.NoteTable
 
 processPak :: Pak Parsed -> Either String (Pak Processed)
-processPak (Pak idS inT r) =
-  case processINodeTable inT of
-    Left err -> Left err
-    Right v  -> Right (Pak (processIDSector idS) v (processRest r))
+processPak (Pak idS inT nT r) = Pak <$> pure idS <*> processINodeTable inT <*> processNT nT <*> pure r
 
 processIDSector = id
 processRest = id

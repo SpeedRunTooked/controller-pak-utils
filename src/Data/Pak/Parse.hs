@@ -15,6 +15,7 @@ import           Data.N64Font
 import           Data.Pak
 import           Data.Pak.Types
 import           Data.Pak.INodeTable
+import           Data.Pak.NoteTable
 
 parsePak :: FilePath -> IO (Either String (Pak Parsed))
 parsePak path = 
@@ -29,8 +30,9 @@ getPak =
     idSec  <- getIDSector
     iNodeT <- getINodeTable
     skip 256 -- skip second INodeTable
+    noteT  <- getNoteTable
     rest   <- getRawPages 3
-    pure (Pak idSec iNodeT rest)
+    pure (Pak idSec iNodeT noteT rest)
 
 getIDSector :: Get ByteString
 getIDSector = getLazyByteString 256
@@ -95,3 +97,16 @@ getINodeTable =
                         ++ show c
                         ++ " INode sum = "
                         ++ show i
+
+getNoteTable :: Get (NoteTable Parsed)
+getNoteTable = NT <$> sequence (replicate 16 getNoteTableEntry)
+
+getNoteTableEntry :: Get NoteTableEntry
+getNoteTableEntry = NTE <$> getLazyByteString 4
+                        <*> getLazyByteString 2
+                        <*> getWord16be
+                        <*> getWord8
+                        <*> getWord8
+                        <*> getWord16be
+                        <*> getLazyByteString 4
+                        <*> getLazyByteString 16

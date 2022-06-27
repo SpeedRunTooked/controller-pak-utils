@@ -8,11 +8,13 @@ import           Data.IntMap (IntMap)
 
 import           Data.Pak.Types
 import           Data.Pak.INodeTable
+import           Data.Pak.NoteTable
 
 
 -- | The `Pak` in its structured form
 data Pak a = Pak { idSector   :: ByteString
                  , indexTable :: INodeTable a
+                 , noteTabe   :: NoteTable a
                  , rawData    :: RawPages
                  }
 

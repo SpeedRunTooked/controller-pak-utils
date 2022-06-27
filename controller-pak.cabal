@@ -1,6 +1,6 @@
 cabal-version:      2.4
 name:               controller-pak
-version:            0.1.0.0
+version:            0.2.0.0
 
 -- A short (one-line) description of the package.
 synopsis: Reading Nintendo64 Controller Pak data
@@ -20,6 +20,7 @@ library
                       Data.Pak.Display
                       Data.Pak.Internal
                       Data.Pak.INodeTable
+                      Data.Pak.NoteTable
                       Data.Pak.Parse
                       Data.Pak.Types
                       Data.Pak.File
