@@ -17,6 +17,7 @@ extra-source-files: CHANGELOG.md
 
 library
     exposed-modules:  Data.Pak
+                      Data.Pak.Display
                       Data.Pak.Internal
                       Data.Pak.INodeTable
                       Data.Pak.Parse
