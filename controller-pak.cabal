@@ -1,0 +1,55 @@
+cabal-version:      2.4
+name:               controller-pak
+version:            0.1.0.0
+
+-- A short (one-line) description of the package.
+synopsis: Reading Nintendo64 Controller Pak data
+
+
+license: MIT
+author:             José Manuel Calderón Trilla
+maintainer:         jmct@jmct.cc
+
+-- A copyright notice.
+-- copyright:
+-- category:
+extra-source-files: CHANGELOG.md
+
+library
+    exposed-modules:  Data.Pak
+                      Data.Pak.Internal
+                      Data.Pak.INodeTable
+                      Data.Pak.Parse
+                      Data.Pak.Types
+                      Data.Pak.File
+                      Data.N64Font
+
+    -- Modules included in this library but not exported.
+    -- other-modules:
+
+    -- LANGUAGE extensions used by modules in this package.
+    -- other-extensions:
+    build-depends:    base ^>=4.15.0.0
+                    , binary
+                    , bytestring
+                    , containers
+                    , microlens
+                    , mtl
+                    , vector
+    hs-source-dirs:   src
+    default-language: Haskell2010
+
+executable controller-pak
+    main-is:          Main.hs
+
+    -- Modules included in this executable, other than Main.
+    -- other-modules:
+
+    -- LANGUAGE extensions used by modules in this package.
+    -- other-extensions:
+    build-depends:
+        base ^>=4.15.0.0,
+        controller-pak
+
+    hs-source-dirs:   app
+    default-language: Haskell2010
