@@ -2,6 +2,9 @@ module Main where
 
 import qualified Data.Pak as P
 import           Data.Pak.Parse (parsePak)
+import           Data.Pak.DumpNote (dumpNote)
+
+import qualified Data.ByteString.Lazy as BS
 
 import           Data.Maybe (fromMaybe)
 import           Options.Applicative
@@ -10,7 +13,7 @@ main :: IO ()
 main = do
   opt    <- execParser optP
   case opt of
-    Opt mode (FPath f) -> do
+    Opt mode (FPath f) Stdout -> do
       processed <- fmap (>>= P.processPak) (parsePak f)
       case processed of
         Left err -> putStrLn err
@@ -23,15 +26,19 @@ main = do
     <> header "cpak: giving you control(ler pak)" )
 
 doDump Meta         pp = putStr (P.displayPak pp)
-doDump (DumpNote i) pp = error "TODO: Implement dumpNote"
+doDump (DumpNote i) pp =
+  case dumpNote i pp of
+    Left err -> putStr err
+    Right bs -> BS.putStr bs
 
 data Options = Opt
-  { mode  :: Dump
-  , input :: InputFile
+  { mode   :: Dump
+  , input  :: InputFile
+  , output :: OutputFile
   }
 
 opts :: Parser Options
-opts = Opt <$> pDump <*> pInput
+opts = Opt <$> pDump <*> pInput <*> pOutput
 
 data Dump = Meta | DumpNote Int | DumpAll
 
@@ -66,4 +73,21 @@ stdInput = flag' Stdin
   <> help "Read from stdin" )
 
 pInput :: Parser InputFile
-pInput = fileInput <|> stdInput
+pInput = fromMaybe Stdin <$> optional (fileInput <|> stdInput)
+
+data OutputFile = Stdout | OFPath FilePath
+
+fileOutput :: Parser OutputFile
+fileOutput = OFPath <$> strOption
+  (  long "out"
+  <> short 'o'
+  <> metavar "FILENAME"
+  <> help "path to dump bytes file" )
+
+stdOutput :: Parser OutputFile
+stdOutput = flag' Stdout
+  (  long "stdout"
+  <> help "dump to stdout" )
+
+pOutput :: Parser OutputFile
+pOutput = fromMaybe Stdout <$> optional (fileOutput <|> stdOutput)
