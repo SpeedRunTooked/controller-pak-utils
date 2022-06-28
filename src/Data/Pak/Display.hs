@@ -38,6 +38,6 @@ displayNoteTableEntry (i, (NTE a b c _ _ _ g h)) =
   "\t\tFile  Ext.: " ++ unpack g ++ "\n" ++
   "\t\tFile  Name: " ++ unpack h ++ "\n"
 
-displayFile (n, FileLoc i l) = "\t\tFile #" ++ show n ++ " starts on page " ++
-                                show i ++ " and is " ++ show l ++ " pages (" ++
-                                show ((toInteger l) * 256) ++ " bytes) long\n"
+displayFile (n, FileLoc i l s) = "\t\tFile #" ++ show n ++ " starts on page " ++
+                                  show i ++ " and is " ++ show l ++ " pages (" ++
+                                  show ((toInteger l) * 256) ++ " bytes) long\n"

@@ -12,6 +12,9 @@ import           Control.Monad.Writer
 
 import           Control.Arrow (first, second)
 
+import qualified Data.Vector.Unboxed as V
+import           Data.Vector.Unboxed (Vector)
+
 -- | The I-Node table. When `Parsed` we will not have the list of Files
 --   or the Free list.
 data INodeTable a =
@@ -26,124 +29,73 @@ data INodeTable a =
            -- ^ Once `Processed` this will be the list of
            --   files found on this Controller Pak
 
-         , iNodeFree     :: [Word8]
+         , iNodeFree     :: [Word16]
            -- ^ Once `Processed` this will be the list of
            --   free pages on the Controller Pak
          }
 
 -- | A file on the Pak, the starting page and the length is all we need.
 data FileLoc =
-  FileLoc { fileStart  :: Word8
-          , fileLength :: Word8
+  FileLoc { fileStart  :: Word16
+          , fileLength :: Word16
+          , fileSeq    :: [Word16]
           }
   deriving Show
 
+-- | We're going to index _a lot_ into the INodeTable when processing, so
+--   creating a vector is important
+makeTableVec :: [Word16] -> Vector Word16
+makeTableVec is = V.fromList ((replicate 5 0) ++ is)
 
-processINodeTable :: INodeTable Parsed -> Either String (INodeTable Processed)
-processINodeTable (ITable check tab locs free) =
-  case (e, s, w) of
-    (Left err ,        _, _) -> Left err
-    (Right fls, (128, _), w) -> Right (ITable check tab fls w)
-    (_        , (off, _), _) -> Left (consumptionError off)
+-- | The state of our monad is the list of inodes visited
+--   IMPORTANT: The list will be _in reverse_ during computation
+type INodeState = [Word16]
+
+type INodeParser = ExceptT String (State INodeState)
+
+runINodeParser :: INodeParser a -> Either String a
+runINodeParser = flip evalState [] . runExceptT
+
+getFreePages :: Vector Word16 -> [Word16]
+getFreePages vec = V.toList (V.map fromIntegral (V.elemIndices 3 vec))
+
+followFile :: Vector Word16 -> Word16 -> INodeParser [Word16]
+followFile v s =
+ do put []
+    if (s == 0)
+    then pure []
+    else followINodes v s
+
+v !? i = v V.!? (fromIntegral i)
+
+followINodes :: Vector Word16 -> Word16 -> INodeParser [Word16]
+followINodes vec start
+  | Just 1 <- vec !? start = reverse <$> get
+  | Just 3 <- vec !? start = throwError "The chain of inodes leads to a free page!"
+  | Just i <- vec !? start = modify (i:) >> followINodes vec i
+  | otherwise              = throwError "INode Table value out of bounds"
+
+
+-- | To process the INode Table we need a list of starting pages
+--   (one for each file), and the parsed INodeTable
+processINodeTable :: [Word16] -> INodeTable Parsed -> Either String (INodeTable Processed)
+processINodeTable ss (ITable check tab locs free) =
+  case runINodeParser (mapM (followFile vec) ss) of
+    Left err -> Left err
+    Right is -> validate is freeList >>
+                pure (ITable check tab (package ss is) freeList)
   where
-    consumptionError off =
-      "Expect to consume all 128 entries of the INode, only got " ++ show off
-    ((e, s), w) = runINodeParser (5, tab) parseFileLocs
+    vec = makeTableVec tab
 
-getFileLocs :: INodeTable Parsed -> [FileLoc]
-getFileLocs (ITable _ sq _ _) = undefined
+    freeList = getFreePages vec
 
-type INodeState = (Word8, [Word16])
+    validate is fs = unless (totalLen /= 256)
+                       (Left $ "Number of used+free INodes: " ++ show totalLen
+                              ++ " number expected: 256")
 
-type INodeParser = ExceptT String (StateT INodeState (Writer [Word8]))
+      where totalLen = (length fs) + (sum (map length is))
 
-runINodeParser :: INodeState -> INodeParser a -> ((Either String a, (Word8, [Word16])), [Word8])
-runINodeParser st = runWriter . flip runStateT st . runExceptT
-
-parseFileLocs :: INodeParser [FileLoc]
-parseFileLocs =
- do fl <- parseFileLoc
-    case fl of
-      Nothing  -> pure []
-      Just fl' ->
-       do fls <- parseFileLocs
-          pure (fl':fls)
-      
-
-parseFileLoc :: INodeParser (Maybe FileLoc)
-parseFileLoc =
- do skipFree
-    start <- getOffset
-    if (start == 128)
-    then pure Nothing
-    else do consumeFileSeq
-            eoc <- endOfChain
-            if not eoc
-            then throwError "consumed entire file but do not see sentinel"
-            else do skipEntry
-                    end <- getOffset
-                    pure (Just (FileLoc start (end - start)))
-
-consumeFileSeq :: INodeParser ()
-consumeFileSeq =
- do ind   <- isIndex
-    if not ind
-    then pure ()
-    else do skipEntry
-            consumeFileSeq
-
-isIndex :: INodeParser Bool
-isIndex =
- do i <- peek
-    if i == 3 || i == 1
-    then pure False
-    else pure True
-
-endOfChain :: INodeParser Bool
-endOfChain =
- do i <- peek
-    if i == 1
-    then pure True
-    else pure False
-
-next :: INodeParser Word16
-next =
- do is <- gets snd
-    case is of
-      []       -> throwError "Out of INodes"
-      (i:rest) -> modify (first (+1)) >> pure i
-
-peek :: INodeParser Word16
-peek =
- do is <- gets snd
-    case is of
-      []       -> throwError "Out of INodes in `peek`"
-      (i:rest) -> pure i
-
-getOffset :: INodeParser Word8
-getOffset = gets fst
-
-atEnd :: INodeParser Bool
-atEnd = getOffset >>= pure . (== 128)
-
-skipEntry :: INodeParser ()
-skipEntry =
- do (o, s) <- get
-    case s of
-      []   -> throwError "Out of INodes in `skip`"
-      i:is -> put (o+1, is)
-
-tellOffset :: INodeParser ()
-tellOffset =
- do getOffset >>= tell . pure
-    
-
-skipFree :: INodeParser ()
-skipFree =
- do end <- atEnd
-    if end
-    then pure ()
-    else do i <- peek
-            case i of
-              3 -> skipEntry >> tellOffset >> skipFree
-              _ -> pure ()
+package :: [Word16] -> [[Word16]] -> [FileLoc]
+package ss iss = filter ((>= 5) . fileStart) (map f (zip ss iss))
+ where
+  f (s, is) = FileLoc s (fromIntegral $ length is) is

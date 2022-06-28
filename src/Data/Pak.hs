@@ -13,7 +13,10 @@ import Data.Pak.INodeTable
 import Data.Pak.NoteTable
 
 processPak :: Pak Parsed -> Either String (Pak Processed)
-processPak (Pak idS inT nT r) = Pak <$> pure idS <*> processINodeTable inT <*> processNT nT <*> pure r
+processPak (Pak idS inT nT r) = Pak <$> pure idS
+                                    <*> processINodeTable (map startPage (tableEntries nT)) inT
+                                    <*> processNT nT
+                                    <*> pure r
 
 processIDSector = id
 processRest = id
