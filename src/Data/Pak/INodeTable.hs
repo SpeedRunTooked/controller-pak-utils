@@ -61,7 +61,7 @@ getFreePages vec = V.toList (V.map fromIntegral (V.elemIndices 3 vec))
 
 followFile :: Vector Word16 -> Word16 -> INodeParser [Word16]
 followFile v s =
- do put []
+ do put [s]
     if (s == 0)
     then pure []
     else followINodes v s
