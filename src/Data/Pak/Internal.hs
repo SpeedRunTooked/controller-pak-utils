@@ -19,18 +19,18 @@ import           Data.Pak.NoteTable
 data Pak a = Pak { idSector   :: ByteString
                  , indexTable :: INodeTable a
                  , noteTabe   :: NoteTable a
-                 , rawData    :: RawPages
+                 , pageData   :: RawPages
                  }
 
 -- | The Raw pages, one ByteString per page. This should probably never be used.
 data RawPages = RP { rawPages :: IntMap ByteString }
 
-getPage :: Word16 -> RawPages -> Maybe ByteString
-getPage i (RP im) = IM.lookup (fromIntegral i) im
+getPage :: Int -> RawPages -> Maybe ByteString
+getPage i (RP im) = IM.lookup i im
 
 getPages :: [Word16] -> RawPages -> Maybe ByteString
 getPages is rp = if length ps /= length is
                  then Nothing
                  else Just (BS.concat (M.catMaybes ps))
  where
-  ps = map (flip getPage rp) is
+  ps = map (flip getPage rp . fromIntegral) is

@@ -3,6 +3,8 @@ module Data.Pak
   , module Data.Pak.INodeTable
   , module Data.Pak.Display
   , processPak
+  , Parsed
+  , Processed
   )
 where
 
