@@ -24,6 +24,7 @@ library
                       Data.Pak.NoteTable
                       Data.Pak.Parse
                       Data.Pak.Types
+                      Data.Pak.Utils
                       Data.Pak.File
                       Data.N64Font
 
