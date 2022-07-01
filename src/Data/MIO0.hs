@@ -21,6 +21,8 @@ import           Control.Arrow (first, second)
 import qualified Data.Vector.Unboxed as V
 import           Data.Vector.Unboxed (Vector)
 
+import Debug.Trace (trace)
+
 
 -- | Header is 16 bytes, the first 4 of which _must_ be the "MIO0" sig (ASCII).
 --
@@ -36,11 +38,11 @@ data MIORawHeader = MIORH
  deriving Show
 
 
-getMIOHeader :: ByteString -> Either String (ByteString, MIORawHeader)
+getMIOHeader :: ByteString -> Either String MIORawHeader
 getMIOHeader bs = 
     case runGetOrFail getHeader bs of
       Left (_, _, str)       -> Left str
-      Right (rest, _, val) -> Right (rest, val)
+      Right (rest, _, val) -> Right val
 
 getHeader :: Get MIORawHeader
 getHeader =
@@ -73,15 +75,15 @@ data MIOState = MIOState { layout_   :: [Bool]
 
 type MIO = ExceptT String (State MIOState)
 
-mkInitMIOState :: ByteString -> MIORawHeader -> MIOState
-mkInitMIOState dat (MIORH _ l c u) = MIOState lbs vec 0 (fromIntegral l) cOff uOff
- where
-  vec  = V.replicate (fromIntegral l) 0 :: Vector Word8
-  cOff = BS.drop ((fromIntegral c) - 16) dat
-  uOff = BS.drop ((fromIntegral u) - 16) dat
-
-  lbs  = getLayout dat
-
+mkInitMIOState :: ByteString -> Either String (MIORawHeader, MIOState)
+mkInitMIOState dat = do
+  header <- getMIOHeader dat
+  let cOff = BS.drop (fromIntegral (cOffset header)) dat
+      uOff = BS.drop (fromIntegral (uOffset header)) dat
+      len  = fromIntegral (fullLen header)
+      vec  = V.replicate (fromIntegral (fullLen header)) maxBound
+      lbs  = getLayout (BS.drop 16 dat)
+  pure (header, MIOState lbs vec 0 len cOff uOff)
 
 outputB :: MIO (Vector Word8)
 outputB = gets outputB_
@@ -93,6 +95,7 @@ putByte b =
   i   <- index
   let nvec = (V.//) buf [(i,b)]
   modify (\s -> s { outputB_ = nvec })
+  ipp
 
 layout :: MIO [Bool]
 layout = gets layout_
@@ -103,6 +106,8 @@ nextLBit =
   lbss <- layout
   let lb:lbs = lbss
   modify (\s -> s { layout_ = lbs })
+  lbss' <- layout
+  trace (show (take 10 lbss')) (pure ())
   return lb
 
 index :: MIO Int
@@ -110,6 +115,9 @@ index = gets index_
 
 ipp :: MIO ()
 ipp = modify (\s -> s { index_ = index_ s + 1 })
+
+ipEq :: Int -> MIO ()
+ipEq n = modify (\s -> s { index_ = index_ s + n })
 
 comped :: MIO ByteString
 comped = gets comped_
@@ -142,26 +150,40 @@ unCompByte =
 runMIO :: ByteString -> Either String MIOState
 runMIO bs =
  do
-  (rest, header) <- getMIOHeader bs
-  flip evalState (mkInitMIOState rest header) $ runExceptT (uncompress >> get)
+  (_header, initSt) <- mkInitMIOState bs
+  flip evalState initSt $ runExceptT (uncompress >> get)
+
+--runMIO' :: MIO a -> MIOState -> Either String 
+runMIO' mio st = flip runState st $ runExceptT mio
 
 isEnd :: MIO Bool
 isEnd = (>=) <$> index <*> (fmap V.length) outputB
 
 calcLenOff :: Word8 -> Word8 -> (Word8, Word16)
-calcLenOff b1 b2 = (l, upperOff + lowerOff + 1)
+calcLenOff b1 b2 = (l, combined + 1)
  where
-  l = ((b1 .&. 0xF0) `shiftR` 4) + 3
+  l = (b1 `shiftR` 4) + 3
 
   upperOff = (fromIntegral (b1 .&. 0x0F)) `shiftL` 8
   lowerOff = fromIntegral b2
-
-
+  combined = upperOff .|. lowerOff
 
 readCompressed :: MIO ()
 readCompressed =
  do (l,o) <- calcLenOff <$> compByte <*> compByte
-    undefined
+    curr  <- index
+    outB  <- outputB
+    when ((fromIntegral o) > curr)
+      (throwError ("len: " ++ show l ++ 
+                   "\nindex: " ++ show curr ++
+                   "\noffset: " ++ show o ++
+                   "\noutputB_: " ++ show (V.take 32 outB)))
+    let l'    = fromIntegral l
+        vbs   = V.slice (curr - (fromIntegral o)) l' outB
+        idxV  = V.enumFromN (fromIntegral curr) l'
+        outB' = V.update_ outB idxV vbs
+    ipEq l'
+    modify (\s -> s { outputB_ = outB' })
 
 uncompress :: MIO ()
 uncompress =
