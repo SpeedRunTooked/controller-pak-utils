@@ -22,14 +22,19 @@ import qualified Data.Vector.Unboxed as V
 import           Data.Vector.Unboxed (Vector)
 
 
+-- | Header is 16 bytes, the first 4 of which _must_ be the "MIO0" sig (ASCII).
+--
+-- The locations defined by the offsets are relative to the begnning of the
+-- header, as opposed to the end. What this means is that if an offset say 32,
+-- for instance, that would be 32 bytes from the "MIO0" signature.
 data MIORawHeader = MIORH
   { mioSig     :: ByteString
-  , fullLen    :: Word32
-  , cOffset    :: Word32
-  , uOffset    :: Word32
-  , layoutBits :: [Bool]
+  , fullLen    :: Word32      -- Length of the final, uncompressed, data
+  , cOffset    :: Word32      -- location of the compressed data
+  , uOffset    :: Word32      -- location of the uncompressed data
   }
  deriving Show
+
 
 getMIOHeader :: ByteString -> Either String (ByteString, MIORawHeader)
 getMIOHeader bs = 
@@ -37,23 +42,19 @@ getMIOHeader bs =
       Left (_, _, str)       -> Left str
       Right (rest, _, val) -> Right (rest, val)
 
-
 getHeader :: Get MIORawHeader
 getHeader =
   MIORH <$> getSig
         <*> getWord32be
         <*> getWord32be
         <*> getWord32be
-        <*> getLayout
 
 getSig :: Get ByteString
 getSig = getLazyByteString 4
 
-
--- This is WRONG! We don't know how many layout bits there are!
--- Technically not part of the header
-getLayout :: Get [Bool]
-getLayout = sequence (replicate 10 getWord8) >>= pure . concatMap word8ToBools
+-- | Lazily convert a ByteSting to a list of booleans representing its bits
+getLayout :: ByteString -> [Bool]
+getLayout = concatMap word8ToBools . BS.unpack
 
 word8ToBools :: Word8 -> [Bool]
 word8ToBools w = go 8 []
