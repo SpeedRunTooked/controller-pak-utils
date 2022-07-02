@@ -1,5 +1,5 @@
 {-# LANGUAGE TemplateHaskell #-}
-module Codec.MIO0 where
+module Codec.MIO0 ( decodeMIO ) where
 
 import           Data.Word
 import           GHC.Int
@@ -73,7 +73,18 @@ data MIOState = MIOState { _layout   :: [Bool] -- lazy stream of layout bits
 
 makeLenses ''MIOState
 
+-- | The only function in this module that matters: Decode an MIO-encoded
+--   ByteString into a Vector of Word8 bytes.
+decodeMIO :: ByteString -> Either String (Vector Word8)
+decodeMIO bs = fmap _outputB (runMIO bs)
+
 type MIO = ExceptT String (State MIOState)
+
+runMIO :: ByteString -> Either String MIOState
+runMIO bs =
+ do
+  (_header, initSt) <- mkInitMIOState bs
+  flip evalState initSt $ runExceptT (uncompress >> get)
 
 mkInitMIOState :: ByteString -> Either String (MIORawHeader, MIOState)
 mkInitMIOState dat = do
@@ -121,15 +132,6 @@ unCompByte =
      do
       uncomped .= bs
       return b
-
-runMIO :: ByteString -> Either String MIOState
-runMIO bs =
- do
-  (_header, initSt) <- mkInitMIOState bs
-  flip evalState initSt $ runExceptT (uncompress >> get)
-
---runMIO' :: MIO a -> MIOState -> Either String 
-runMIO' mio st = flip runState st $ runExceptT mio
 
 isEnd :: MIO Bool
 isEnd = (>=) <$> use idx <*> (fmap V.length) (use outputB)

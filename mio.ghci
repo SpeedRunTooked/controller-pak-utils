@@ -18,4 +18,3 @@ Right (Pak _ itab _ (RP toadmap))  = processPak toad
 let toHex = flip N.showHex ""
 let Just toadbytes  = getPages (fileSeq (iNodeFiles itab !! 0)) (RP toadmap)
 let miobytes = BS.drop 256 toadbytes
-let initState = mkInitMIOState miobytes
