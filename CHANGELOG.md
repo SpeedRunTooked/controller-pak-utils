@@ -1,5 +1,9 @@
 # Revision history for controller-pak
 
+## 0.4.0.0 -- 2022-07-01
+
+* Support decoding MIO0-compression
+
 ## 0.3.0.0 -- 2022-06-27
 
 * Support non-sequential files
