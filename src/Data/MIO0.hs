@@ -61,12 +61,11 @@ word8ToBools w = go 8 []
   go 0 acc = acc
   go i acc = go (i - 1) (odd (w `shiftR` (8 - i)):acc)
 
-data MIOState = MIOState { layout_   :: [Bool]
-                         , outputB_  :: Vector Word8
-                         , index_    :: Int
-                         , len_      :: Int
-                         , comped_   :: ByteString
-                         , uncomped_ :: ByteString
+data MIOState = MIOState { layout_   :: [Bool] -- lazy stream of layout bits
+                         , outputB_  :: Vector Word8 -- output vector
+                         , index_    :: Int          -- Current output index
+                         , comped_   :: ByteString   -- compressed data
+                         , uncomped_ :: ByteString   -- uncompressed data
                          }
   deriving Show
 
@@ -77,10 +76,9 @@ mkInitMIOState dat = do
   header <- getMIOHeader dat
   let cOff = BS.drop (fromIntegral (cOffset header)) dat
       uOff = BS.drop (fromIntegral (uOffset header)) dat
-      len  = fromIntegral (fullLen header)
       vec  = V.replicate (fromIntegral (fullLen header)) maxBound
       lbs  = getLayout (BS.drop 16 dat)
-  pure (header, MIOState lbs vec 0 len cOff uOff)
+  pure (header, MIOState lbs vec 0 cOff uOff)
 
 outputB :: MIO (Vector Word8)
 outputB = gets outputB_
