@@ -19,4 +19,3 @@ let toHex = flip N.showHex ""
 let Just toadbytes  = getPages (fileSeq (iNodeFiles itab !! 0)) (RP toadmap)
 let miobytes = BS.drop 256 toadbytes
 let initState = mkInitMIOState miobytes
-let showSt st = "lbs = " ++ show (take 5 $ layout_ st) ++ "\nvec " ++ show (V.take 16 (outputB_ st))

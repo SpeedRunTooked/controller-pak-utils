@@ -1,8 +1,11 @@
+{-# LANGUAGE TemplateHaskell #-}
 module Codec.MIO0 where
 
 import           Data.Word
 import           GHC.Int
 import           Data.Bits (shiftR, shiftL, (.|.), (.&.))
+
+import           Control.Lens
 
 import           Control.Applicative
 import           Control.Monad.Except
@@ -34,7 +37,6 @@ data MIORawHeader = MIORH
   }
  deriving Show
 
-
 getMIOHeader :: ByteString -> Either String MIORawHeader
 getMIOHeader bs = 
     case runGetOrFail getHeader bs of
@@ -61,13 +63,15 @@ word8ToBools w = go 8 []
   go 0 acc = acc
   go i acc = go (i - 1) (odd (w `shiftR` (8 - i)):acc)
 
-data MIOState = MIOState { layout_   :: [Bool] -- lazy stream of layout bits
-                         , outputB_  :: Vector Word8 -- output vector
-                         , index_    :: Int          -- Current output index
-                         , comped_   :: ByteString   -- compressed data
-                         , uncomped_ :: ByteString   -- uncompressed data
+data MIOState = MIOState { _layout   :: [Bool] -- lazy stream of layout bits
+                         , _outputB  :: Vector Word8 -- output vector
+                         , _idx    :: Int          -- Current output index
+                         , _comped   :: ByteString   -- compressed data
+                         , _uncomped :: ByteString   -- uncompressed data
                          }
   deriving Show
+
+makeLenses ''MIOState
 
 type MIO = ExceptT String (State MIOState)
 
@@ -80,65 +84,42 @@ mkInitMIOState dat = do
       lbs  = getLayout (BS.drop 16 dat)
   pure (header, MIOState lbs vec 0 cOff uOff)
 
-outputB :: MIO (Vector Word8)
-outputB = gets outputB_
-
 putByte :: Word8 -> MIO ()
 putByte b =
  do
-  buf <- outputB
-  i   <- index
-  let nvec = (V.//) buf [(i,b)]
-  modify (\s -> s { outputB_ = nvec })
-  ipp
-
-layout :: MIO [Bool]
-layout = gets layout_
+  buf <- use outputB
+  i   <- use idx
+  outputB .= (buf V.// [(i,b)])
+  idx += 1
 
 nextLBit :: MIO Bool
 nextLBit =
  do
-  lbss <- layout
+  lbss <- use layout
   let lb:lbs = lbss
-  modify (\s -> s { layout_ = lbs })
-  lbss' <- layout
+  layout .= lbs
   return lb
-
-index :: MIO Int
-index = gets index_
-
-ipp :: MIO ()
-ipp = modify (\s -> s { index_ = index_ s + 1 })
-
-ipEq :: Int -> MIO ()
-ipEq n = modify (\s -> s { index_ = index_ s + n })
-
-comped :: MIO ByteString
-comped = gets comped_
-
-uncomped :: MIO ByteString
-uncomped = gets uncomped_
 
 compByte :: MIO Word8
 compByte =
  do
-  res <- BS.uncons <$> comped
+  res <- BS.uncons <$> use comped
   case res of
     Nothing     -> throwError "Couldn't uncons in compByte"
     Just (b,bs) ->
      do
-      modify (\s -> s { comped_ = bs })
+      comped .= bs
       return b
 
 unCompByte :: MIO Word8
 unCompByte =
  do
-  res <- BS.uncons <$> uncomped
+  res <- BS.uncons <$> use uncomped
   case res of
     Nothing     -> throwError "Couldn't uncons in unCompByte"
     Just (b,bs) ->
      do
-      modify (\s -> s { uncomped_ = bs })
+      uncomped .= bs
       return b
 
 runMIO :: ByteString -> Either String MIOState
@@ -151,7 +132,7 @@ runMIO bs =
 runMIO' mio st = flip runState st $ runExceptT mio
 
 isEnd :: MIO Bool
-isEnd = (>=) <$> index <*> (fmap V.length) outputB
+isEnd = (>=) <$> use idx <*> (fmap V.length) (use outputB)
 
 calcLenOff :: Word8 -> Word8 -> (Word8, Word16)
 calcLenOff b1 b2 = (l, combined + 1)
@@ -165,19 +146,19 @@ calcLenOff b1 b2 = (l, combined + 1)
 readCompressed :: MIO ()
 readCompressed =
  do (l,o) <- calcLenOff <$> compByte <*> compByte
-    curr  <- index
-    outB  <- outputB
+    curr  <- use idx
+    outB  <- use outputB
     when ((fromIntegral o) > curr)
       (throwError ("len: " ++ show l ++ 
-                   "\nindex: " ++ show curr ++
+                   "\nidx: " ++ show curr ++
                    "\noffset: " ++ show o ++
                    "\noutputB_: " ++ show (V.take 32 outB)))
     let l'    = fromIntegral l
         vbs   = V.slice (curr - (fromIntegral o)) l' outB
         idxV  = V.enumFromN (fromIntegral curr) l'
         outB' = V.update_ outB idxV vbs
-    ipEq l'
-    modify (\s -> s { outputB_ = outB' })
+    idx += l'
+    outputB .= outB'
 
 uncompress :: MIO ()
 uncompress =
