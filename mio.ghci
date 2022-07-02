@@ -3,8 +3,8 @@ import Data.Pak
 import Data.Pak.Parse 
 import Data.Pak.INodeTable 
 import Data.Pak.Utils
-import Data.MIO0
-import Data.MIO0 as MIO
+import Codec.MIO0
+import Codec.MIO0 as MIO
 import qualified Data.Vector.Unboxed as V
 import qualified Data.ByteString.Lazy as BS
 import qualified Data.List as L

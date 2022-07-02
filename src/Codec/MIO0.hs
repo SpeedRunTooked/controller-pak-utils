@@ -1,4 +1,4 @@
-module Data.MIO0 where
+module Codec.MIO0 where
 
 import           Data.Word
 import           GHC.Int
