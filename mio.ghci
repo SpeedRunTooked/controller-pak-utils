@@ -3,8 +3,13 @@ import Data.Pak
 import Data.Pak.Parse 
 import Data.Pak.INodeTable 
 import Data.Pak.Utils
+<<<<<<< HEAD
 import Data.MIO0
 import Data.MIO0 as MIO
+=======
+import Codec.MIO0
+import Codec.MIO0 as MIO
+>>>>>>> origin/main
 import qualified Data.Vector.Unboxed as V
 import qualified Data.ByteString.Lazy as BS
 import qualified Data.List as L
@@ -18,5 +23,3 @@ Right (Pak _ itab _ (RP toadmap))  = processPak toad
 let toHex = flip N.showHex ""
 let Just toadbytes  = getPages (fileSeq (iNodeFiles itab !! 0)) (RP toadmap)
 let miobytes = BS.drop 256 toadbytes
-let initState = mkInitMIOState miobytes
-let showSt st = "lbs = " ++ show (take 5 $ layout_ st) ++ "\nvec " ++ show (V.take 16 (outputB_ st))

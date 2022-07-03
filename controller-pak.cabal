@@ -29,6 +29,8 @@ library
                       Data.N64Font
                       Data.MIO0
 
+                      Codec.MIO0
+
     -- Modules included in this library but not exported.
     -- other-modules:
 
@@ -38,7 +40,7 @@ library
                     , binary
                     , bytestring
                     , containers
-                    , microlens
+                    , lens
                     , mtl
                     , vector
     hs-source-dirs:   src
