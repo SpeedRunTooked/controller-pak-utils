@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
-module Data.Pak.DumpNote
+module Data.Pak.Note.Utils
   ( dumpNote
   , withNote
   , mioOffsets

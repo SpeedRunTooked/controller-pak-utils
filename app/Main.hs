@@ -3,7 +3,7 @@ module Main where
 import qualified Data.Pak as P
 import           Data.Pak.Parse (parsePak)
 import           Data.N64Font (decodeBS)
-import           Data.Pak.DumpNote (dumpNote)
+import           Data.Pak.Note.Utils (dumpNote)
 
 import qualified Data.ByteString.Lazy as BS
 
