@@ -28,7 +28,7 @@ data Options = Opt
 opts :: Parser Options
 opts = Opt <$> pDump <*> pApFont <*> pInput <*> pOutput
 
-data Dump = Meta | DumpNote Int | DumpPage Int | DumpAll
+data Dump = Meta | DumpNote Int | DumpPage Int | DumpAll | MIOOffsets Int
 
 pDumpNote :: Parser Dump
 pDumpNote =
@@ -36,6 +36,14 @@ pDumpNote =
                 ( long "dump-note" 
                 <> short 'd'
                 <> metavar "FILE-INDEX" <> help "dump bytes of pak file" )
+
+pFindMIO :: Parser Dump
+pFindMIO =
+  MIOOffsets <$> option auto
+                  ( long "mio-offsets"
+                  <> short 'm'
+                  <> metavar "FILE-INDEX"
+                  <> help "display offsets of MIO0-encoded data in a Note" )
 
 pDumpPage :: Parser Dump
 pDumpPage =
@@ -50,7 +58,7 @@ pDumpAll = flag' DumpAll
   <> help "dump bytes of all pak files" )
 
 pDump :: Parser Dump
-pDump = fromMaybe Meta <$> optional (pDumpNote <|> pDumpPage <|> pDumpAll)
+pDump = fromMaybe Meta <$> optional (pDumpNote <|> pDumpPage <|> pDumpAll <|> pFindMIO)
 
 pApFont :: Parser Bool
 pApFont = switch
