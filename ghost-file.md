@@ -1,32 +1,134 @@
+Introduction and Background
+===========================
+
+Motivation
+----------
+
+Recently, my friends have gotten into playing Mario Kart 64 (for the Nintendo 64).
+They compete by running Time Trials and comparing times, no glitches or use of tools.
+We have already written software that can automatically detect when new personal records are set and have them uploaded to a server to compare.
+An additional feature that would be useful is the ability to share 'ghost' data.
+After completing a run, the game allows you to save a 'ghost' of that run (if certain conditions are met).
+This ghost can then be projected the next time you do a Time Trial on that track, so that you can more easily see the difference between your current run and the 'ghost run'.
+
+Background
+----------
+
+On the N64 itself, the ghost data is saved on the optional 'Controller Pak', which was a memory device that would be inserted into your controller.
+This provided more memory than the EEPROM that was in the game cartridge itself (which was used for track records, but not ghost data).
+When using an emulator, the emulator will write out an `mpk` file which corresponds to the data that would have been written to the Controller Pak itself.
+
+A filesystem was necessary since the controller paks could be used for multiple games (though in the particular case of Mario Kart 64, saving ghost data would use the vast majority of the storage available (121 of 123 pages are used by a ghost file).
+This filesystem is well documented and writing the code to inspect and navigate the filesystem was straightforward.
+
 Ghost File Format
-=================
+-----------------
 
-Folks have already reverse engineered the ghost _stream_ data. But not the save file itself.
+We're going to call a Mario Kart 64 save of Ghost data a 'Ghost File', even though that is not the terminology used by Nintendo (they called things 'Notes' and it's not clear what the Mario Kart 64 devs called the specific format for a MK64 Note).
 
-My friends have a use for this data, so I'm trying to reverse it.
+A Ghost File has two parts:
 
-Terminology:
-------------
+* A Header (what this document is mostly about)
+* The ghost 'stream', which is the data that allows the game to replay your run as the ghost.
 
-When I talk about a 'file', I am talking about the file that Mariokart64 stores on the controller pak.
-I have written `cpak` as a tool to extract files out of the controller pak files themselves.
+Folks have already reverse engineered the ghost _stream_ data, but not the header.
+Let's talk a bit about what is in each.
+We'll start with the stream, since that's better understood.
 
-When we talk about 'pages' we are talking about pages on the controller pak.
+### The Stream
+
+The ghost stream itself is a set of records that is run-length encoded.
+Each record has the following information:
+
+* The state of buttons
+  - A, the accelerator
+  - B, the brake
+  - Z, triggering an item
+  - R, hopping (so that you can drift/powerslide)
+* The state of the analog stick's Y-axis
+* The state of the analog stick's X-axis
+
+The game keeps track of this information for each frame, but in order to avoid wasting space the state of the buttons are single bits within a byte and the records are run-length encoded.
+So the data as written follows the following format (each box is a byte):
+
+```
++------------+----------+-------+-------+
+|button-state|#-of-frame|stick-y|stick-x|
++------------+----------+-------+-------+
+```
+
+This data is then _further compressed_ using Nintendo's MIO0 compression scheme, which is decently documented.
+A consequence of this is that you will not see bytes that follow that format in the `.mpk` file itself, you must find the appropriate place where the ghost stream you care about is and then decompress the data.
+My implementation of the decompression is in [src/Codec/MIO0.hs](src/Codec/MIO0.hs).
+
+The ghost stream data is _only this sequence of records_.
+In other words, it contains no information about either of the following:
+
+* The character that the player used
+* The track where the run was recorded
+
+But we _know_ that this information exists somewhere in the Ghost File because the game tells you which tracks have ghosts recorded for them and when you play a track with a ghost, it renders the same character that was used when the recorded run was saved.
+
+So where is this data?
+It must be in the header.
+
+
+The Header
+==========
+
+I have written a tool (`cpak`) to extract files out of the controller pak files themselves, as well as to perform decoding of the `MIO0` stream and query/dump specific pages of the controller pak. The functionality of `cpak` is not specific to MK64.
+
+I have written a much smaller tool [`haunting`](https://github.com/SpeedRunTooked/haunting), which uses `cpak` as a library to get the uncompressed ghost data and then converts it into a `.csv` for easy processing.
+
+Quick note: When we talk about 'pages' we are talking about pages on the controller pak.
 These are completely unrelated to pages on my local filesystem.
-
 
 Things we know:
 ---------------
 
-* The actual GHOST data is a MIO0-encoded stream which starts 256 bytes after the start of the save file
+### Basic Facts
+
+* The actual Ghost data is a MIO0-encoded stream which starts 256 bytes after the start of the save file
 * You can only save 2 ghost streams in a save file
 * The stream data _does not_ contain information about the track and/or the character used.
 * There is at least 256 bytes of header for the save data, but it's possible that there's also a head in between ghost streams
 * Course time records are two bytes
 * Character values are 1 byte
 
-Track Values
-------------
+### The two slots
+
+It seems that the slots always start at the same offsets, regardless of length.
+`cpak -m <N>` gives the byte offsets of any `MIO0` signatures.
+Running it on a variety of controller pak files with many different ghost files gives me:
+
+
+```
+[jmct@flip controller-pak]$ for f in `ls pak-files/*.mpk`; do ./cpak -m 0 -f $f; done
+Note #0 had MIO0 signatures at bytes: [256]
+Note #0 had MIO0 signatures at bytes: [256,15616]
+Note #0 had MIO0 signatures at bytes: [256,15616]
+Note #0 had MIO0 signatures at bytes: [256,15616]
+Note #0 had MIO0 signatures at bytes: [256,15616]
+Note #0 had MIO0 signatures at bytes: [256]
+Note #0 had MIO0 signatures at bytes: [256]
+Note #0 had MIO0 signatures at bytes: [256]
+Note #0 had MIO0 signatures at bytes: [256,15616]
+Note #0 had MIO0 signatures at bytes: [256,15616]
+```
+
+The decompressed ghost streams are not all the same length, however.
+You can easily see this by comparing the number of lines of a few ghost stream `csv` files:
+
+```
+[jmct@flip haunting]$ for f in `ls *.csv`; do wc -l $f; done
+9167 tlrw-only-left.csv
+5363 tlrw-shorter1.csv
+6667 tlrw-shorter.csv
+```
+
+So the there's either junk in the bytes between the first slot and the start of the second or some sort of padding.
+
+### Track Values
 
 0000  Mario Raceway
 0001  Choco Mountain
@@ -49,8 +151,7 @@ Track Values
 0012  DK's Jungle Parkway
 0013  Big Donut
 
-Character Values
-----------------
+### Character Values
 
 0 	MARIO
 1 	LUIGI
@@ -221,8 +322,8 @@ Here's what I think we've discovered to far:
 * Rest: bytes from here until 0x42 are unknown
 * Rest: when slot is not used, 'Rest' is just ascending values starting from 0
 
-A thing I noticed by accident
-=============================
+Slightly More Structure
+=======================
 
 When looking at two save files, I the `nkXQ` pattern that was present in the first two examples I showed.
 However, there was a bit more information that just wasn't present in those examples.
@@ -310,14 +411,12 @@ Here's what I think we've discovered to far:
 -----
 
 Every single example has the byte `ad` in it, perhaps this separates different sections of the file?
-
+Probably not.
 
 Conclusions
 ===========
 
 Very few... so far.
-
-
 
 Appendix A:
 ===========
