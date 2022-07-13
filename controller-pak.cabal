@@ -27,6 +27,7 @@ library
                       Data.Pak.Utils
                       Data.Pak.File
                       Data.N64Font
+                      Data.MIO0
 
                       Codec.MIO0
 
