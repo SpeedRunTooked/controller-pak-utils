@@ -216,10 +216,101 @@ Here's what I think we've discovered to far:
 
 * A: always null
 * B: unknown
-* C: first byte is likely "is this slot used", second byte 0
+* C: first byte is likely "is this slot used", second byte often 0, sometimes something else...
 * D: first byte is very likely the character ID
 * Rest: bytes from here until 0x42 are unknown
 * Rest: when slot is not used, 'Rest' is just ascending values starting from 0
+
+A thing I noticed by accident
+=============================
+
+When looking at two save files, I the `nkXQ` pattern that was present in the first two examples I showed.
+However, there was a bit more information that just wasn't present in those examples.
+
+Let's take a look at the relevant bytes from our first example:
+
+```
+00000000: 0000 32c1 0100 031e 1838 103e 585c 982b  ..2......8.>X\.+
+00000010: d432 14b7 3a8e 3026 56cd a429 6e6b 5851  .2..:.0&V..)nkXQ
+00000020: 4491 dc8c b231 8080 8ace 14ad 8a4b 90de  D....1.......K..
+00000030: 8aa0 c8a2 1294 8080 8080 60e1 fabf c04d  ..........`....M
+00000040: 521f 1000 0000 0000 0000 0000 0000 0000  R...............
+```
+
+Our examples had everything between the 8th byte and the 66th byte the same, but then I saw this other save file:
+
+```
+00000080: 0000 301c 0100 0284 4afd 7471 c48c b030  ..0.....J.tq...0
+00000090: 4a1f 90d8 6ade c0d4 40f1 7c8b 6e6b 5851  J...j...@.|.nkXQ
+000000a0: 4491 dc8c b231 8080 8ace 14ad 8a4b 90de  D....1.......K..
+000000b0: 8aa0 c8a2 1294 8080 8080 60e1 fabf c04d  ..........`....M
+000000c0: 521f 1000 0000 0000 0000 0000 0000 0000  R...............
+```
+
+Now the 21 bytes between the character code and byte 0x9b are different.
+
+Now before when we looked at a save of Luigi's raceway on the second slot, it didn't share any common bytes, but it's always possible that it was a mislabel.
+Either way this doesn't share _all_ the same bytes, and maybe there's some important context in that.
+
+(The next day...)
+
+I was able to download a few more MPKs, the following two are the first slots from two saves on Frappe:
+
+
+```
+00000000: 0000 353b 0105 0336 9653 48fc 02ba c04a  ..5;...6.SH....J
+00000010: d607 b0b3 b25a e0ad 0480 8080 8080 8080  .....Z..........
+00000020: 8080 8080 8080 8080 8080 8080 8080 8080  ................
+00000030: 8080 8080 8080 8080 8080 8080 8080 8080  ................
+00000040: 8080 8000 0000 0000 0000 0000 0000 0000  ................
+00000050: 0000 0000 0000 0000 0000 0000 0000 0000  ................
+00000060: 0000 0000 0000 0000 0000 0000 0000 0000  ................
+00000070: 0000 0000 0000 0000 0000 0000 0000 0022  ..............."
+```
+
+and
+
+```
+00000000: 0000 340b 0105 0318 4233 288a a8a0 404c  ..4.....B3(...@L
+00000010: dedd 4c52 3ca1 b0ad 0480 8080 8080 8080  ..LR<...........
+00000020: 8080 8080 8080 8080 8080 8080 8080 8080  ................
+00000030: 8080 8080 8080 8080 8080 8080 8080 8080  ................
+00000040: 8080 8000 0000 0000 0000 0000 0000 0000  ................
+00000050: 0000 0000 0000 0000 0000 0000 0000 0000  ................
+00000060: 0000 0000 0000 0000 0000 0000 0000 0000  ................
+00000070: 0000 0000 0000 0000 0000 0000 0000 0095  ................
+```
+
+This is also the same between 0x17 and 0x42 (most of those bytes being 0x80, which I think is some sort of padding).
+
+So I think we can further refine our view of the header, though it's possible that what we're identifying as a pattern is a coincidence.
+
+Taking Stock: Part II
+=====================
+
+Here's what I think we've discovered to far:
+
+
+```
+  A    B    C   D,   E (16 bytes)
++----+----+----+--+----------------+----+
+|0000|????|0X00|0X|????????????????|????|...
++----+----+----+--+----------------+----+
+```
+
+* A: always null
+* B: unknown, but always starts with 0x3?, perhaps this is a 16-bit pointer?
+* C: first byte is likely "is this slot used", second byte often 0, sometimes something else...
+* D: first byte is very likely the character ID
+* E: 16 bytes of unknown purpose
+* Rest: bytes from here until 0x42 are unknown
+* Rest: when slot is not used, 'E' and 'Rest' is just ascending values starting from 0
+
+`ad'?
+-----
+
+Every single example has the byte `ad` in it, perhaps this separates different sections of the file?
+
 
 Conclusions
 ===========
