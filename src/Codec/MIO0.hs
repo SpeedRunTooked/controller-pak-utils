@@ -63,11 +63,11 @@ word8ToBools w = go 8 []
   go 0 acc = acc
   go i acc = go (i - 1) (odd (w `shiftR` (8 - i)):acc)
 
-data MIOState = MIOState { _layout   :: [Bool] -- lazy stream of layout bits
-                         , _outputB  :: Vector Word8 -- output vector
-                         , _idx    :: Int          -- Current output index
-                         , _comped   :: ByteString   -- compressed data
-                         , _uncomped :: ByteString   -- uncompressed data
+data MIOState = MIOState { _layout   :: [Bool]        -- lazy stream of layout bits
+                         , _outputB  :: Vector Word8  -- output vector
+                         , _idx      :: Int           -- Current output index
+                         , _comped   :: ByteString    -- compressed data
+                         , _uncomped :: ByteString    -- uncompressed data
                          }
   deriving Show
 
